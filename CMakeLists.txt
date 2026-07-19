@@ -119,6 +119,19 @@ endif()
 if(APPLE AND NOT BOOST_ROOT)
     execute_process(COMMAND brew --prefix boost OUTPUT_VARIABLE BOOST_ROOT OUTPUT_STRIP_TRAILING_WHITESPACE)
 endif()
+# macOS native (Homebrew) build: the monero submodule find_package()s Boost/libsodium/etc. in its own
+# directory scope, so those *_INCLUDE_DIRS are empty at this (top-level) scope and the `feather` target
+# gets no include path for them — every monero header it pulls in (cryptonote_basic.h -> boost/variant.hpp,
+# crypto/generic-ops.h -> sodium/crypto_verify_32.h, ...) then fails with "file not found". On Linux this
+# is masked because those headers live in /usr/include (an implicit search path); Homebrew symlinks them
+# into $(brew --prefix)/include, which Apple clang (CommandLineTools) does not search by default. Add the
+# Homebrew prefix include dir so add_subdirectory(src) (the feather app) resolves them.
+if(APPLE)
+    execute_process(COMMAND brew --prefix OUTPUT_VARIABLE HOMEBREW_PREFIX OUTPUT_STRIP_TRAILING_WHITESPACE)
+    if(HOMEBREW_PREFIX AND EXISTS "${HOMEBREW_PREFIX}/include")
+        include_directories(SYSTEM "${HOMEBREW_PREFIX}/include")
+    endif()
+endif()
 if(MINGW)
     set(MINGW_FLAG "${MINGW_FLAG} -DWIN32_LEAN_AND_MEAN")
     set(Boost_THREADAPI win32)

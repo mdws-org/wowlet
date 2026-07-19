@@ -14,6 +14,9 @@ feather_autogen/
 feather.cbp
 src/assets_tor.qrc
 src/assets_docs.qrc
+src/assets_wownerod.qrc
+contrib/macdeploy/Info.plist
+installed/
 feather.AppDir/*
 src/assets/tor/*
 src/assets/docs/*
