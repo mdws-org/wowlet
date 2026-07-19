@@ -161,16 +161,19 @@ if(TOR_DIR)
 
     message(STATUS "Embedded Tor version: ${TOR_VERSION}")
 
-    # Always copy Tor when doing a reproducible build to prevent old versions from getting included
-    if (REPRODUCIBLE)
+    # Always copy Tor when doing a reproducible build to prevent old versions from getting included.
+    # wowlet: macOS's stock cp (CommandLineTools/BSD) has no `-u` flag, so `cp -au` aborts with exit 64
+    # and the Tor binaries never land in src/assets/tor — the qrc then references missing files and the
+    # build dies with "No rule to make target .../tor/libcrypto.3.dylib". Use plain `cp -a` on Apple.
+    if (REPRODUCIBLE OR APPLE)
         set(TOR_COPY_CMD "cp -a ${TOR_DIR}/* ${CMAKE_CURRENT_SOURCE_DIR}/src/assets/tor")
     else()
         set(TOR_COPY_CMD "cp -au ${TOR_DIR}/* ${CMAKE_CURRENT_SOURCE_DIR}/src/assets/tor")
     endif()
 
     execute_process(COMMAND bash -c "${TOR_COPY_CMD}" RESULT_VARIABLE ret)
-    if(ret EQUAL "1")
-        message(FATAL_ERROR "Tor copy failure: ${TOR_COPY_CMD}")
+    if(NOT ret EQUAL "0")
+        message(FATAL_ERROR "Tor copy failure (${ret}): ${TOR_COPY_CMD}")
     endif()
 
     message(STATUS "Embedding Tor binaries at ${TOR_DIR}")
@@ -182,15 +185,16 @@ endif()
 # file with the node inside. WOWNEROD_DIR points at a dir containing a `wownerod` (or wownerod.exe).
 if(WOWNEROD_DIR)
     execute_process(COMMAND bash -c "mkdir -p ${CMAKE_CURRENT_SOURCE_DIR}/src/assets/wownerod")
-    if (REPRODUCIBLE)
+    # wowlet: plain `cp -a` on Apple — macOS cp has no `-u` (see the Tor copy note above).
+    if (REPRODUCIBLE OR APPLE)
         set(WOWNEROD_COPY_CMD "cp -a ${WOWNEROD_DIR}/* ${CMAKE_CURRENT_SOURCE_DIR}/src/assets/wownerod")
     else()
         set(WOWNEROD_COPY_CMD "cp -au ${WOWNEROD_DIR}/* ${CMAKE_CURRENT_SOURCE_DIR}/src/assets/wownerod")
     endif()
 
     execute_process(COMMAND bash -c "${WOWNEROD_COPY_CMD}" RESULT_VARIABLE ret)
-    if(ret EQUAL "1")
-        message(FATAL_ERROR "wownerod copy failure: ${WOWNEROD_COPY_CMD}")
+    if(NOT ret EQUAL "0")
+        message(FATAL_ERROR "wownerod copy failure (${ret}): ${WOWNEROD_COPY_CMD}")
     endif()
 
     message(STATUS "Embedding wownerod binary from ${WOWNEROD_DIR}")

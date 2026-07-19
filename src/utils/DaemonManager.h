@@ -35,6 +35,11 @@ public:
 
     QString rpcAddress() const;   // "127.0.0.1:<rpcPort>" for the wallet to connect to
 
+    // wowlet: fast, non-blocking-ish (600ms cap) TCP probe of the local RPC port. Node selection uses
+    // this to decide "is a local node actually there?" — either our embedded wownerod or a user-run
+    // daemon. When nothing answers, the wallet falls back to the remote-node list (routed over Tor).
+    bool localNodeReachable() const;
+
     QString daemonPath;
     QString daemonDir;            // where the unpacked wownerod binary lives
     QString blockchainDir;        // --data-dir (blockchain + p2pstate)

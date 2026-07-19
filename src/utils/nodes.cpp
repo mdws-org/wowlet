@@ -288,9 +288,13 @@ void Nodes::autoConnect(bool forceReconnect) {
 
     Wallet::ConnectionStatus status = m_wallet->connectionStatus();
 
-    // wowlet: when running our own embedded node, always connect to it and bypass remote node
-    // selection. Disabling Config::runLocalNode (the deliberate opt-out) restores remote nodes.
-    if (conf()->get(Config::runLocalNode).toBool()) {
+    // wowlet: local-first, else remote-over-Tor. Prefer a local node at 127.0.0.1:34568 whenever one is
+    // actually reachable — either our embedded wownerod or a daemon the user runs themselves — and route
+    // the wallet straight to it (local traffic bypasses the proxy; see useSocks5Proxy). When no local node
+    // answers, fall through to the remote-node list below, which is routed over Tor by the default proxy
+    // config. This is what makes node-less builds usable out of the box: they simply use remote-over-Tor
+    // until/unless a local node appears. Disabling Config::runLocalNode is the deliberate remote-only opt-out.
+    if (conf()->get(Config::runLocalNode).toBool() && daemonManager()->localNodeReachable()) {
         if (status == Wallet::ConnectionStatus_Disconnected || forceReconnect) {
             this->connectToNode(FeatherNode(daemonManager()->rpcAddress()));
         }
