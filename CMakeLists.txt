@@ -119,6 +119,19 @@ endif()
 if(APPLE AND NOT BOOST_ROOT)
     execute_process(COMMAND brew --prefix boost OUTPUT_VARIABLE BOOST_ROOT OUTPUT_STRIP_TRAILING_WHITESPACE)
 endif()
+# macOS native (Homebrew) build: the monero submodule find_package()s Boost/libsodium/etc. in its own
+# directory scope, so those *_INCLUDE_DIRS are empty at this (top-level) scope and the `feather` target
+# gets no include path for them — every monero header it pulls in (cryptonote_basic.h -> boost/variant.hpp,
+# crypto/generic-ops.h -> sodium/crypto_verify_32.h, ...) then fails with "file not found". On Linux this
+# is masked because those headers live in /usr/include (an implicit search path); Homebrew symlinks them
+# into $(brew --prefix)/include, which Apple clang (CommandLineTools) does not search by default. Add the
+# Homebrew prefix include dir so add_subdirectory(src) (the feather app) resolves them.
+if(APPLE)
+    execute_process(COMMAND brew --prefix OUTPUT_VARIABLE HOMEBREW_PREFIX OUTPUT_STRIP_TRAILING_WHITESPACE)
+    if(HOMEBREW_PREFIX AND EXISTS "${HOMEBREW_PREFIX}/include")
+        include_directories(SYSTEM "${HOMEBREW_PREFIX}/include")
+    endif()
+endif()
 if(MINGW)
     set(MINGW_FLAG "${MINGW_FLAG} -DWIN32_LEAN_AND_MEAN")
     set(Boost_THREADAPI win32)
@@ -148,16 +161,19 @@ if(TOR_DIR)
 
     message(STATUS "Embedded Tor version: ${TOR_VERSION}")
 
-    # Always copy Tor when doing a reproducible build to prevent old versions from getting included
-    if (REPRODUCIBLE)
+    # Always copy Tor when doing a reproducible build to prevent old versions from getting included.
+    # wowlet: macOS's stock cp (CommandLineTools/BSD) has no `-u` flag, so `cp -au` aborts with exit 64
+    # and the Tor binaries never land in src/assets/tor — the qrc then references missing files and the
+    # build dies with "No rule to make target .../tor/libcrypto.3.dylib". Use plain `cp -a` on Apple.
+    if (REPRODUCIBLE OR APPLE)
         set(TOR_COPY_CMD "cp -a ${TOR_DIR}/* ${CMAKE_CURRENT_SOURCE_DIR}/src/assets/tor")
     else()
         set(TOR_COPY_CMD "cp -au ${TOR_DIR}/* ${CMAKE_CURRENT_SOURCE_DIR}/src/assets/tor")
     endif()
 
     execute_process(COMMAND bash -c "${TOR_COPY_CMD}" RESULT_VARIABLE ret)
-    if(ret EQUAL "1")
-        message(FATAL_ERROR "Tor copy failure: ${TOR_COPY_CMD}")
+    if(NOT ret EQUAL "0")
+        message(FATAL_ERROR "Tor copy failure (${ret}): ${TOR_COPY_CMD}")
     endif()
 
     message(STATUS "Embedding Tor binaries at ${TOR_DIR}")
@@ -169,15 +185,16 @@ endif()
 # file with the node inside. WOWNEROD_DIR points at a dir containing a `wownerod` (or wownerod.exe).
 if(WOWNEROD_DIR)
     execute_process(COMMAND bash -c "mkdir -p ${CMAKE_CURRENT_SOURCE_DIR}/src/assets/wownerod")
-    if (REPRODUCIBLE)
+    # wowlet: plain `cp -a` on Apple — macOS cp has no `-u` (see the Tor copy note above).
+    if (REPRODUCIBLE OR APPLE)
         set(WOWNEROD_COPY_CMD "cp -a ${WOWNEROD_DIR}/* ${CMAKE_CURRENT_SOURCE_DIR}/src/assets/wownerod")
     else()
         set(WOWNEROD_COPY_CMD "cp -au ${WOWNEROD_DIR}/* ${CMAKE_CURRENT_SOURCE_DIR}/src/assets/wownerod")
     endif()
 
     execute_process(COMMAND bash -c "${WOWNEROD_COPY_CMD}" RESULT_VARIABLE ret)
-    if(ret EQUAL "1")
-        message(FATAL_ERROR "wownerod copy failure: ${WOWNEROD_COPY_CMD}")
+    if(NOT ret EQUAL "0")
+        message(FATAL_ERROR "wownerod copy failure (${ret}): ${WOWNEROD_COPY_CMD}")
     endif()
 
     message(STATUS "Embedding wownerod binary from ${WOWNEROD_DIR}")

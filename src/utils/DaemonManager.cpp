@@ -50,6 +50,10 @@ QString DaemonManager::rpcAddress() const {
     return QString("%1:%2").arg(this->rpcHost, QString::number(this->rpcPort));
 }
 
+bool DaemonManager::localNodeReachable() const {
+    return Utils::portOpen(this->rpcHost, this->rpcPort);
+}
+
 void DaemonManager::init() {
     // Make sure the data directory exists before wownerod tries to write to it.
     QDir().mkpath(this->blockchainDir);
