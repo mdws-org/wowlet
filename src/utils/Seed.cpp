@@ -34,7 +34,7 @@ Seed::Seed(Type type, NetworkType::Type networkType, QString language, const cha
     this->time = std::time(nullptr);
 
     try {
-        polyseed::data seed(POLYSEED_MONERO);
+        polyseed::data seed(POLYSEED_WOWNERO);
 
         if (secret) {
             seed.create_from_secret(0, secret);
@@ -85,11 +85,23 @@ Seed::Seed(Type type, QStringList mnemonic, NetworkType::Type networkType)
 
     if (this->type == Type::POLYSEED) {
         try {
-            polyseed::data seed(POLYSEED_MONERO);
-            auto lang = seed.decode(this->mnemonic.join(" ").toStdString().c_str());
+            // Wownero polyseeds carry the registered WOWNERO coin ID in their
+            // checksum and key derivation. Earlier wowlet builds inherited
+            // Feather's MONERO ID, so fall back to it to keep wallets created
+            // by those builds restorable.
+            polyseed::data seed(POLYSEED_WOWNERO);
+            polyseed::data seedLegacy(POLYSEED_MONERO);
+            polyseed::data* decoded = &seed;
+            try {
+                seed.decode(this->mnemonic.join(" ").toStdString().c_str());
+            }
+            catch (const polyseed::error&) {
+                seedLegacy.decode(this->mnemonic.join(" ").toStdString().c_str());
+                decoded = &seedLegacy;
+            }
 
             uint8_t key[32];
-            seed.keygen(&key, sizeof(key));
+            decoded->keygen(&key, sizeof(key));
 
             std::stringstream keyStream;
             for (unsigned char i : key) {
@@ -97,10 +109,10 @@ Seed::Seed(Type type, QStringList mnemonic, NetworkType::Type networkType)
             }
             this->spendKey = QString::fromStdString(keyStream.str());
 
-            this->time = seed.birthday();
+            this->time = decoded->birthday();
             this->setRestoreHeight();
 
-            this->encrypted = seed.encrypted();
+            this->encrypted = decoded->encrypted();
         }
         catch (const std::exception &e) {
             this->errorString = e.what();

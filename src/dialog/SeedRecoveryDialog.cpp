@@ -229,7 +229,7 @@ void SeedRecoveryDialog::checkSeed() {
 
             crypto::secret_key key;
             try {
-                polyseed::data seed(POLYSEED_MONERO);
+                polyseed::data seed(POLYSEED_WOWNERO);
                 seed.decode(seedString.toStdString().c_str());
                 seed.keygen(&key.data, sizeof(key.data));
             }
