@@ -408,7 +408,7 @@ export PATH="${BASEPREFIX}/${HOST}/native/bin:${PATH}"
 
         case "$HOST" in
             *darwin*)
-                mv "feather.app" "Feather.app"
+                mv "wowlet.app" "Feather.app"
                 mkdir -p Feather.app/Contents/bin
                 cp -a /feather/contrib/depends/${HOST}/Tor/libevent-2.1.7.dylib Feather.app/Contents/bin
                 cp -a /feather/contrib/depends/${HOST}/Tor/tor Feather.app/Contents/bin
