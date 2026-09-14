@@ -2,9 +2,14 @@ name: ci/gh-actions/build
 
 on: [push, pull_request, workflow_dispatch]
 
+permissions:
+  contents: read
+
 # NOTE (wownero-rebase branch): the Arch + macOS jobs from upstream Feather's build.yml are
 # temporarily disabled to get a fast, cheap iteration loop while bringing up the build against the
 # wownero monero submodule (gui branch). Restore the full matrix from upstream once Ubuntu is green.
+# The macOS job is now covered natively by macos-arm64.yml, which builds the
+# bundle this fork actually ships.
 
 jobs:
   build-ubuntu-without-scanner:
