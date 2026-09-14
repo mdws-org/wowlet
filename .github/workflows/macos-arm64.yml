@@ -1,0 +1,275 @@
+name: macOS arm64
+
+on:
+  push:
+    branches:
+      - master
+      - ci-macos-arm64
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: macos-arm64-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: arm64-macos-native
+    runs-on: macos-15
+    timeout-minutes: 180
+
+    env:
+      HOMEBREW_NO_AUTO_UPDATE: "1"
+      HOMEBREW_NO_INSTALL_CLEANUP: "1"
+      HOMEBREW_NO_INSTALLED_DEPENDENTS_CHECK: "1"
+      APP: build/bin/wowlet.app
+      VERIFY_LOG: verification.log
+      # Tor Browser expert bundle providing the Tor binary embedded in the app.
+      TEB_VERSION: "15.0"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Verify runner architecture
+        run: |
+          arch="$(uname -m)"
+          echo "uname -m: $arch"
+          test "$arch" = "arm64"
+          sw_vers
+          xcodebuild -version
+
+      - name: Install dependencies
+        run: |
+          brew install cmake pkgconf qt boost openssl@3 libsodium unbound hidapi \
+                       protobuf expat ccache zeromq qrencode libzip libgcrypt libusb
+          brew list --versions qt boost openssl@3 protobuf
+
+      - name: Restore compiler cache
+        uses: actions/cache@v4
+        with:
+          path: ~/Library/Caches/ccache
+          key: ccache-macos-arm64-${{ github.sha }}
+          restore-keys: |
+            ccache-macos-arm64-
+
+      - name: Fetch Tor to embed
+        run: |
+          # The app extracts the embedded Tor to its data directory at runtime.
+          # The expert bundle's tor already resolves libevent through
+          # @executable_path, which is that same directory, so the binaries are
+          # embedded as shipped and need no install-name rewriting.
+          tor_dir="$RUNNER_TEMP/tor-embed"
+          mkdir -p "$tor_dir"
+          curl -fsSL -o "$RUNNER_TEMP/teb.tar.gz" \
+            "https://archive.torproject.org/tor-package-archive/torbrowser/${TEB_VERSION}/tor-expert-bundle-macos-aarch64-${TEB_VERSION}.tar.gz"
+          mkdir -p "$RUNNER_TEMP/teb"
+          tar xzf "$RUNNER_TEMP/teb.tar.gz" -C "$RUNNER_TEMP/teb"
+          cp "$RUNNER_TEMP/teb/tor/tor" "$tor_dir/"
+          cp "$RUNNER_TEMP"/teb/tor/libevent-*.dylib "$tor_dir/"
+          chmod +x "$tor_dir/tor"
+          ls -la "$tor_dir"
+          otool -L "$tor_dir/tor"
+
+          # CMake refuses to embed Tor without a version, and a stale hardcoded
+          # one would silently misreport what is actually shipped.
+          tor_version="$("$tor_dir/tor" --version | head -1 | sed -E 's/^Tor version ([0-9.]+).*/\1/')"
+          echo "embedded Tor version: $tor_version"
+          test -n "$tor_version"
+          {
+            echo "TOR_DIR=$tor_dir"
+            echo "TOR_VERSION=$tor_version"
+          } >> "$GITHUB_ENV"
+
+      - name: Configure
+        run: |
+          # No embedded node: this fork follows Feather and uses a local node if
+          # one is reachable, otherwise a remote node over Tor.
+          cmake -S . -B build \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DWOWNEROD_DIR=Off \
+            -DWITH_SCANNER=OFF \
+            -DTOR_DIR="$TOR_DIR" \
+            -DTOR_VERSION="$TOR_VERSION" \
+            -DCMAKE_PREFIX_PATH="$(brew --prefix qt)" \
+            -DCMAKE_C_COMPILER_LAUNCHER=ccache \
+            -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
+
+      - name: Build
+        run: |
+          cmake --build build -j"$(sysctl -n hw.ncpu)"
+          ccache --show-stats || true
+
+      - name: Package app bundle
+        run: |
+          "$(brew --prefix qt)/bin/macdeployqt" "$APP" -verbose=1
+
+          # macdeployqt does not follow @loader_path references between Boost
+          # dylibs, so the transitive Boost libraries libboost_thread needs
+          # (atomic, container, date_time) are left out and the app fails at
+          # dyld time. Copy every @loader_path Boost referent that is absent and
+          # give it a matching install name.
+          fw="$APP/Contents/Frameworks"
+          boost="$(brew --prefix boost)"
+          for _pass in 1 2 3; do
+            missing=""
+            for dylib in "$fw"/*.dylib; do
+              [ -e "$dylib" ] || continue
+              for ref in $(otool -L "$dylib" | awk '/@loader_path\/libboost_/ {print $1}'); do
+                name="${ref#@loader_path/}"
+                [ -f "$fw/$name" ] && continue
+                case " $missing " in
+                  *" $name "*) ;;
+                  *) missing="$missing $name" ;;
+                esac
+              done
+            done
+            [ -z "$missing" ] && break
+            for name in $missing; do
+              echo "adding $name"
+              cp "$boost/lib/$name" "$fw/$name"
+              chmod u+w "$fw/$name"
+              install_name_tool -id "@loader_path/$name" "$fw/$name"
+            done
+          done
+
+          # macdeployqt also leaves some copied libraries advertising their
+          # Homebrew path as their own install name.
+          for dylib in "$fw"/*.dylib; do
+            [ -e "$dylib" ] || continue
+            id="$(otool -D "$dylib" | tail -1)"
+            case "$id" in
+              /opt/homebrew/*|/usr/local/*)
+                echo "rewriting install name of $(basename "$dylib")"
+                install_name_tool -id "@loader_path/$(basename "$dylib")" "$dylib"
+                ;;
+            esac
+          done
+
+          # Ad-hoc signature. It satisfies the arm64 load-time requirement that
+          # every binary carry one, but not Gatekeeper on a machine that
+          # downloaded the dmg -- that needs a Developer ID identity and
+          # notarisation, which is the only line to change here.
+          codesign --force --deep -s - "$APP"
+
+      - name: Verify bundle
+        run: |
+          fail=0
+          log() { echo "$@" | tee -a "$VERIFY_LOG"; }
+          bin="$APP/Contents/MacOS/wowlet"
+          plist="$APP/Contents/Info.plist"
+
+          log "== bundle layout"
+          test -d "$APP" || { log "FAIL: $APP was not produced"; exit 1; }
+          test -x "$bin" || { log "FAIL: $bin missing or not executable"; exit 1; }
+
+          log "== lipo -archs $bin"
+          archs="$(lipo -archs "$bin")"
+          log "$archs"
+          [ "$archs" = "arm64" ] || { log "FAIL: expected arm64, got '$archs'"; fail=1; }
+
+          # This fork inherited Feather's macOS bundle wholesale: the app was
+          # named Feather and carried CFBundleIdentifier
+          # org.monero-project.feather, byte-identical to upstream, so
+          # installing it replaced a user's real Feather Wallet. macOS was the
+          # only platform the fork had not renamed.
+          log "== bundle identity"
+          id="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$plist")"
+          name="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleName' "$plist")"
+          exe="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$plist")"
+          log "CFBundleIdentifier: $id"
+          log "CFBundleName: $name"
+          log "CFBundleExecutable: $exe"
+          [ "$id" = "org.wownero.wowlet" ] || { log "FAIL: expected org.wownero.wowlet, got '$id'"; fail=1; }
+          [ "$name" = "Wowlet" ] || { log "FAIL: expected CFBundleName Wowlet, got '$name'"; fail=1; }
+          [ "$exe" = "wowlet" ] || { log "FAIL: expected CFBundleExecutable wowlet, got '$exe'"; fail=1; }
+
+          # The same inheritance registered this app as a handler for monero:
+          # and moneroseed: links, which nothing in src/ parses.
+          log "== registered URL schemes"
+          schemes="$(plutil -convert json -o - "$plist" | python3 -c 'import json, sys; types = json.load(sys.stdin).get("CFBundleURLTypes", []); print(" ".join(sorted({s for t in types for s in t.get("CFBundleURLSchemes", [])})))')"
+          log "schemes: $schemes"
+          case " $schemes " in
+            *" monero "*|*" moneroseed "*)
+              log "FAIL: bundle still claims Monero URL schemes"
+              fail=1
+              ;;
+            *) log "no monero:/moneroseed: claims (ok)" ;;
+          esac
+          case " $schemes " in
+            *" wownero "*) log "wownero: scheme registered (ok)" ;;
+            *) log "FAIL: wownero scheme not registered"; fail=1 ;;
+          esac
+
+          log "== embedded Tor"
+          log "TOR_VERSION passed to CMake: $TOR_VERSION"
+          test -x "$TOR_DIR/tor" || { log "FAIL: Tor binary was not staged"; fail=1; }
+
+          log "== codesign --verify --deep --strict"
+          if codesign --verify --deep --strict --verbose=2 "$APP" 2>&1 | tee -a "$VERIFY_LOG"; then
+            log "codesign: valid"
+          else
+            log "FAIL: codesign verification failed"
+            fail=1
+          fi
+
+          log "== checking every Mach-O in the bundle for load commands that point outside it"
+          # Only LC_LOAD_DYLIB / LC_LOAD_WEAK_DYLIB / LC_REEXPORT_DYLIB are
+          # resolved at load time; a library's own LC_ID_DYLIB is never looked up.
+          bad=""
+          while IFS= read -r -d '' f; do
+            file "$f" | grep -q Mach-O || continue
+            refs="$(otool -l "$f" \
+                    | awk '/LC_LOAD_DYLIB|LC_LOAD_WEAK_DYLIB|LC_REEXPORT_DYLIB/ {f=1} f && $1 == "name" {print $2; f=0}' \
+                    | grep -E '^(/opt/homebrew|/usr/local|/Users)' || true)"
+            if [ -n "$refs" ]; then
+              bad="$bad$f:"$'\n'"$refs"$'\n'
+            fi
+          done < <(find "$APP" -type f \( -perm -u+x -o -name '*.dylib' \) -print0)
+          if [ -n "$bad" ]; then
+            log "FAIL: unresolved references outside the bundle:"
+            log "$bad"
+            fail=1
+          else
+            log "no references to /opt/homebrew, /usr/local or /Users"
+          fi
+
+          # dyld resolves the whole dependency graph before Qt initialises a
+          # display, so this catches the missing-Boost failure on a headless
+          # runner. It is the cheapest check that the bundle actually loads.
+          log "== $bin --version"
+          set +e
+          perl -e 'alarm shift; exec @ARGV' 180 "$bin" --version 2>&1 | tee -a "$VERIFY_LOG"
+          rc=${PIPESTATUS[0]}
+          set -e
+          log "exit status: $rc"
+          [ "$rc" -eq 0 ] || { log "FAIL: --version exited $rc"; fail=1; }
+
+          exit "$fail"
+
+      - name: Create dmg
+        run: |
+          version="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$APP/Contents/Info.plist")"
+          short="$(git rev-parse --short "$GITHUB_SHA")"
+          dmg="wowlet-${version}-arm64-${short}.dmg"
+          rm -rf dmg-staging && mkdir dmg-staging
+          cp -R "$APP" dmg-staging/
+          ln -s /Applications dmg-staging/Applications
+          hdiutil create -volname "wowlet" -srcfolder dmg-staging -ov -format UDZO "$dmg"
+          shasum -a 256 "$dmg" | tee -a "$VERIFY_LOG"
+          echo "DMG=$dmg" >> "$GITHUB_ENV"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: wowlet-arm64-${{ github.sha }}
+          path: |
+            ${{ env.DMG }}
+            ${{ env.VERIFY_LOG }}
+          retention-days: 30
+          if-no-files-found: error
