@@ -1,60 +1,50 @@
-# Feather Wallet
+# wowlet
 
-Feather is a free Monero desktop wallet for Linux, Tails, macOS and Windows. It is written in C++ with the Qt framework.
+wowlet is a Wownero desktop wallet, written in C++ with the Qt framework. Upstream builds it for Linux, macOS and Windows. This fork builds it for macOS on Apple Silicon only.
 
-- **easy-to-use**, **small** and **fast** - Feather runs well on any modern hardware, including virtual machines and live operating systems.
-- **beginner friendly**, but also caters to advanced Monero users by providing a [feature set](https://docs.featherwallet.org/guides/features) that is on par with the official CLI.
-- ships with **sane defaults** that suit most users, but can also be configured for high or uncommon threat models.
-- serves as a testing grounds for **experimental features** that may later be adopted in the reference wallets.
+## Fork of wownero/wowlet
 
-## Download
+This repository continues [wownero/wowlet](https://codeberg.org/wownero/wowlet), which derives from [Feather](https://github.com/feather-wallet/feather), the Monero desktop wallet. It is maintained in the [mdws-org](https://github.com/mdws-org) organization and has no affiliation with the Wownero project, the Feather project, or the Monero Project. Those projects did not produce this build and cannot support it.
 
-You can download Feather from **[featherwallet.org](https://featherwallet.org/download/)** or **[GitHub](https://github.com/feather-wallet/feather/releases)**.
+Forked from upstream commit `93d13a65` (2026-06-27).
 
-If you need help installing Feather, check the [installation documentation](https://docs.featherwallet.org/).
+Changes in this fork:
 
-We recommend that you verify downloads with GPG. Releases are signed with our [release signing key](https://docs.featherwallet.org/guides/release-signing-key). The fingerprint is:
+- A native Apple Silicon build, packaged as a dmg by CI on every push. Upstream disabled its macOS job while bringing up the wownero submodule.
+- A macOS bundle with its own identity. Earlier builds of this fork carried Feather's bundle identifier and URL handlers, so installing wowlet replaced an existing Feather Wallet installation.
+- Polyseed recovery using the Wownero coin ID registered in tevador/polyseed. Before this change, seeds created by Wownero tooling failed to restore, in this fork and in upstream wowlet, with a checksum error.
 
-```
-8185 E158 A333 30C7 FD61 BC0D 1F76 E155 CEFB A71C
-```
+Code in this repository is written with AI assistance and reviewed by one maintainer. It has had no independent security audit. The dmg attached to each CI run is build output, not a reviewed release.
 
-Windows releases are code-signed for free by [SignPath.io](https://about.signpath.io/), certificate by [SignPath Foundation](https://signpath.org/).
+This software is provided as is, with no warranty and no support commitment. Back up your seed phrase before you install it.
 
-## Resources
+## Install
 
-* [Official Site](https://featherwallet.org)
-* [Documentation](https://docs.featherwallet.org)
-* [Git Repository](https://github.com/feather-wallet/feather)
-* [Matrix](https://matrix.to/#/#feather:monero.social)
-* IRC: `#feather` on [OFTC](https://www.oftc.net/)
-* Mail: dev@featherwallet.org
+No release is published yet. CI attaches a dmg to each run on the [Actions tab](https://github.com/mdws-org/wowlet/actions). Released builds will appear on the [releases page](https://github.com/mdws-org/wowlet/releases).
 
-If you need help with your wallet, please contact us via Matrix or IRC.
-If you don't have an IRC client, you can join the room via [webchat](https://webchat.oftc.net/?randomnick=1&channels=feather).
-If you don’t receive a response immediately please idle in the room.
+These builds carry an ad-hoc signature. They are not signed with an Apple Developer ID and are not notarized, so Gatekeeper refuses to open them.
 
-## Release Builds
+1. Drag the app to your Applications folder. Do not open it from the mounted disk image. macOS runs a quarantined app from a temporary read-only location, and the wallet can fail to find its data directory.
+2. Open the app once and dismiss the warning.
+3. Open System Settings, go to Privacy and Security, and scroll to Security.
+4. Select Open Anyway, then enter your login password.
 
-To learn how to run a bootstrappable release build, see: [contrib/guix/README.md](https://github.com/feather-wallet/feather/blob/master/contrib/guix/README.md)
+The Open Anyway button appears for about an hour after the blocked launch. If it is gone, open the app again to bring it back.
 
-For release attestations, see the [feather-sigs](http://github.com/feather-wallet/feather-sigs) repo.
+## Report a problem
 
-For release policy, see: [RELEASE.md](https://github.com/feather-wallet/feather/blob/master/RELEASE.md)
+Open an issue on [this repository](https://github.com/mdws-org/wowlet/issues). Do not report problems with this fork to the Wownero, Feather, or Monero projects.
 
-## Development
+For a security vulnerability, follow [SECURITY.md](SECURITY.md) instead. Do not open a public issue.
 
-If you are looking to set up a development environment for Feather, see [HACKING.md](https://github.com/feather-wallet/feather/blob/master/HACKING.md).
+## Upstream projects
 
-It is highly recommended that you join our Matrix or IRC channel if you are hacking on Feather.
-Idling in this channel is the best way to stay updated on best practices and new developments.
-
-For information on how Feather is maintained, see: [MAINTENANCE.md](https://github.com/feather-wallet/feather/blob/master/MAINTENANCE.md)
-
-To report a security vulnerability, see: [SECURITY.md](https://github.com/feather-wallet/feather/blob/master/SECURITY.md)
+- wowlet: https://codeberg.org/wownero/wowlet
+- Feather: https://github.com/feather-wallet/feather
+- Wownero: https://wownero.org
 
 ## License
 
-Feather is free and open-source software, [licensed under BSD-3](https://raw.githubusercontent.com/feather-wallet/feather/master/LICENSE).
+wowlet is free and open-source software, licensed under BSD-3. See [LICENSE](LICENSE).
 
-Copyright (c) 2020-2025, The Monero Project
+Copyright (c) 2020-2025, The Monero Project. Wownero and wowlet contributors retain copyright in their own changes.
