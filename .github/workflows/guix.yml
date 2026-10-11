@@ -110,7 +110,7 @@ jobs:
           guile-lzlib-0.3.0.tar.gz 1v1pfqp6hwl0rivs7swhqnfgznxlfnws9ldmn6avnhd10filfa3a /gnu/store/mifnwzdhdz0aj01ig4kfig0ajaq7phzy-guile-lzlib-0.3.0.tar.gz
           EOF
       - name: build
-        run: ADDITIONAL_GUIX_TIMEMACHINE_FLAGS="--disable-authentication" SUBSTITUTE_URLS='http://bordeaux.guix.gnu.org' GUIX_REPO='https://github.com/monero-project/guix.git' HOSTS="${{ matrix.toolchain.target }}" ./contrib/guix/guix-build
+        run: ADDITIONAL_GUIX_TIMEMACHINE_FLAGS="--disable-authentication" SUBSTITUTE_URLS='https://bordeaux.guix.gnu.org' GUIX_REPO='https://github.com/monero-project/guix.git' HOSTS="${{ matrix.toolchain.target }}" ./contrib/guix/guix-build
       - name: virustotal scan
         env:
           VT_API_KEY: ${{ secrets.VT_API_KEY }}
