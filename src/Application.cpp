@@ -24,7 +24,9 @@ Application::Application(int& argc, char** argv)
     if (userName.isEmpty()) {
         userName = qgetenv("USERNAME");
     }
-    QString identifier = "feather";
+    // Must differ from Feather's "feather": both apps put this lock and socket in the same temp
+    // directory, so a shared name makes each one mistake the other for itself and refuse to start.
+    QString identifier = "wowlet";
     if (!userName.isEmpty()) {
         identifier += "-" + userName;
     }

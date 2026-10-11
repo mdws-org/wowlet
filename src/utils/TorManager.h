@@ -32,7 +32,7 @@ public:
     bool torConnected = false;
 
     QString featherTorHost = "127.0.0.1";
-    quint16 featherTorPort = 19450;
+    quint16 featherTorPort = 19460;
 
     QString torDir;
     QString torPath;

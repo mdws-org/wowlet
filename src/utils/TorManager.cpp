@@ -340,7 +340,7 @@ bool TorManager::shouldStartTorDaemon() {
         return false;
     }
 
-    // Tor daemon (or other service) is already running on our port (19450)
+    // Tor daemon (or other service) is already running on our port (torManagedPort)
 
     if (Utils::portOpen(featherTorHost, featherTorPort)) {
         m_alreadyRunning = true;
