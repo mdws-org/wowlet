@@ -126,7 +126,7 @@ if (AttachConsole(ATTACH_PARENT_PROCESS)) {
     }
 
     if (app.isAlreadyRunning()) {
-        qWarning() << "Another instance of Feather is already running";
+        qWarning() << "Another instance of wowlet is already running";
         return EXIT_SUCCESS;
     }
 

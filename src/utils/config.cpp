@@ -124,7 +124,7 @@ static const QHash<Config::ConfigKey, ConfigDirective> configStrings = {
         {Config::socks5Port, {QS("socks5Port"), "9050"}},
         {Config::socks5User, {QS("socks5User"), ""}}, // Unused
         {Config::socks5Pass, {QS("socks5Pass"), ""}}, // Unused
-        {Config::torManagedPort, {QS("torManagedPort"), "19450"}},
+        {Config::torManagedPort, {QS("torManagedPort"), "19460"}},  // not Feather's 19450: a running Feather's Tor would otherwise be adopted as ours
         {Config::useLocalTor, {QS("useLocalTor"), false}},
         {Config::initSyncThreshold, {QS("initSyncThreshold"), 360}},
 
