@@ -93,6 +93,22 @@ jobs:
           { yes "" 2>/dev/null || true; } | sudo env GUIX_BINARY_FILE_NAME="/tmp/${ARCHIVE}" /tmp/guix-install.sh
           source /etc/profile.d/zzz-guix.sh
           /usr/local/bin/guix --version
+      - name: seed sources with unstable upstream archives
+        # Codeberg regenerates these archive tarballs, so the bytes it serves no longer match the hashes
+        # Guix pins, and url-fetch sources are always downloaded, never substituted. Bordeaux serves the
+        # original bytes by content hash; adding them to the store yields the same fixed-output path, so
+        # the daemon finds them present and skips the download.
+        run: |
+          set -exo pipefail
+          mkdir -p /tmp/seed
+          while read -r name nixhash storepath; do
+            wget --tries=5 --waitretry=10 --no-verbose "https://bordeaux.guix.gnu.org/file/${name}/sha256/${nixhash}" -O "/tmp/seed/${name}"
+            sudo /usr/local/bin/guix download "file:///tmp/seed/${name}"
+            test -e "${storepath}"
+          done << EOF
+          guile-zlib-0.2.2.tar.gz 04p9lb3bq5y0k358s8agpksx9x68vzx330cb8jkn4qp3qj7cmnx2 /gnu/store/chwnfavlpd6kpj2fzb2bbpyy8m6jshqf-guile-zlib-0.2.2.tar.gz
+          guile-lzlib-0.3.0.tar.gz 1v1pfqp6hwl0rivs7swhqnfgznxlfnws9ldmn6avnhd10filfa3a /gnu/store/mifnwzdhdz0aj01ig4kfig0ajaq7phzy-guile-lzlib-0.3.0.tar.gz
+          EOF
       - name: build
         run: ADDITIONAL_GUIX_TIMEMACHINE_FLAGS="--disable-authentication" SUBSTITUTE_URLS='http://bordeaux.guix.gnu.org' GUIX_REPO='https://github.com/monero-project/guix.git' HOSTS="${{ matrix.toolchain.target }}" ./contrib/guix/guix-build
       - name: virustotal scan
