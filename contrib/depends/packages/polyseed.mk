@@ -1,9 +1,10 @@
 package=polyseed
-$(package)_version=2.0.0
-$(package)_download_path=https://github.com/tevador/$(package)/archive/refs/tags/
-$(package)_download_file=v$($(package)_version).tar.gz
+# Same commit as the src/third-party/polyseed submodule: v2.0.0 predates POLYSEED_WOWNERO.
+$(package)_version=11dc7e8a70d6be0570fdf5487e9b5d10d37f6071
+$(package)_download_path=https://github.com/tevador/$(package)/archive/
+$(package)_download_file=$($(package)_version).tar.gz
 $(package)_file_name=$(package)-$($(package)_version).tar.gz
-$(package)_sha256_hash=f36282fcbcd68d32461b8230c89e1a40661bd46b91109681cec637433004135a
+$(package)_sha256_hash=886d2ca7d51a657eefb719195e537fa1f85551319d52731cbf29ca5c2206daac
 $(package)_patches=force-static-mingw.patch
 
 define $(package)_preprocess_cmds

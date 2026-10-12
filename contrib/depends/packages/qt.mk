@@ -136,9 +136,6 @@ $(package)_config_opts_linux += -DQT_FEATURE_backtrace=OFF
 $(package)_config_opts_linux += -DQT_FEATURE_dbus=ON
 $(package)_config_opts_linux += -DQT_FEATURE_dbus_linked=ON
 $(package)_config_opts_linux += -DQT_FEATURE_wayland_client=ON
-# Static libwayland-client needs libffi, which Qt's Wayland lookup drops; the qtdeclarative tools
-# (qml, qmltestrunner, qmleasing) then fail to link with undefined ffi_* symbols.
-$(package)_config_opts_linux += -DCMAKE_CXX_STANDARD_LIBRARIES=-lffi
 $(package)_config_opts_linux += -DQT_FEATURE_wayland_server=OFF
 $(package)_config_opts_linux += -DQT_FEATURE_wayland_drm_egl_server_buffer=OFF
 $(package)_config_opts_linux += -DQT_FEATURE_wayland-shm-emulation-server-buffer=OFF
@@ -215,6 +212,10 @@ define $(package)_extract_cmds
   $(build_TAR) --no-same-owner --strip-components=1 -xf $($(package)_source_dir)/$($(package)_qtdeclarative_file_name) -C qtdeclarative
 endef
 
+# The qtdeclarative tools block disabled below builds standalone apps (qml, qmltestrunner, qmleasing,
+# qmlpreview, svgtoqml). wowlet ships none of them, and as static executables they fail to link
+# against depends' static Wayland/XCB libraries. Build-time tools such as qmlcachegen sit outside
+# that block and come from QT_HOST_PATH.
 define $(package)_preprocess_cmds
   cp $($(package)_patch_dir)/root_CMakeLists.txt CMakeLists.txt && \
   patch -p1 -i $($(package)_patch_dir)/rcc_hardcode_timestamp.patch && \
@@ -234,7 +235,10 @@ define $(package)_preprocess_cmds
   patch -p1 -i $($(package)_patch_dir)/wayland-fix.patch && \
   patch -p1 -i $($(package)_patch_dir)/wayland-fix2.patch && \
   cd ../qtmultimedia && \
-  patch -p1 -i $($(package)_patch_dir)/v4l2.patch
+  patch -p1 -i $($(package)_patch_dir)/v4l2.patch && \
+  cd ../qtdeclarative && \
+  sed -i 's/^if(NOT (ANDROID OR WASM OR IOS OR VISIONOS OR rtems))/if(FALSE)/' tools/CMakeLists.txt && \
+  grep -q '^if(FALSE)' tools/CMakeLists.txt
 endef
 
 
