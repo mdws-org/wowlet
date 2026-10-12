@@ -136,6 +136,9 @@ $(package)_config_opts_linux += -DQT_FEATURE_backtrace=OFF
 $(package)_config_opts_linux += -DQT_FEATURE_dbus=ON
 $(package)_config_opts_linux += -DQT_FEATURE_dbus_linked=ON
 $(package)_config_opts_linux += -DQT_FEATURE_wayland_client=ON
+# Static libwayland-client needs libffi, which Qt's Wayland lookup drops; the qtdeclarative tools
+# (qml, qmltestrunner, qmleasing) then fail to link with undefined ffi_* symbols.
+$(package)_config_opts_linux += -DCMAKE_CXX_STANDARD_LIBRARIES=-lffi
 $(package)_config_opts_linux += -DQT_FEATURE_wayland_server=OFF
 $(package)_config_opts_linux += -DQT_FEATURE_wayland_drm_egl_server_buffer=OFF
 $(package)_config_opts_linux += -DQT_FEATURE_wayland-shm-emulation-server-buffer=OFF
