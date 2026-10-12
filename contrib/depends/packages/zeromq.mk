@@ -6,14 +6,15 @@ $(package)_sha256_hash=c593001a89f5a85dd2ddf564805deb860e02471171b3f204944857336
 $(package)_patches=06aba27b04c5822cb88a69677382a0f053367143.patch
 
 define $(package)_set_vars
-  $(package)_config_opts=--without-documentation --disable-shared --without-libsodium --disable-curve
+  $(package)_config_opts=--without-documentation --disable-shared --without-libsodium --disable-curve --disable-Werror
   $(package)_config_opts_linux=--with-pic
   $(package)_config_opts_freebsd=--with-pic
   $(package)_cxxflags=-std=c++11
 endef
 
 define $(package)_preprocess_cmds
-  patch -p1 < $($(package)_patch_dir)/06aba27b04c5822cb88a69677382a0f053367143.patch
+  patch -p1 < $($(package)_patch_dir)/06aba27b04c5822cb88a69677382a0f053367143.patch && \
+  cp -f $(BASEDIR)/config.guess $(BASEDIR)/config.sub config/
 endef
 
 define $(package)_config_cmds
