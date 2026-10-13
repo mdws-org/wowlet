@@ -392,7 +392,10 @@ if(APPLE)
             LINK_FLAGS_RELEASE -s
     )
 
-    file(COPY "${CMAKE_SOURCE_DIR}/src/assets/images/appicons/appicon.icns" DESTINATION "${CMAKE_SOURCE_DIR}/installed/wowlet.app/Contents/Resources/" )
+    # Info.plist names appicon.icns as CFBundleIconFile; it must sit in the bundle's Resources.
+    set(MACOS_APP_ICON "${CMAKE_SOURCE_DIR}/src/assets/images/appicons/appicon.icns")
+    set_source_files_properties(${MACOS_APP_ICON} PROPERTIES MACOSX_PACKAGE_LOCATION "Resources")
+    target_sources(feather PRIVATE ${MACOS_APP_ICON})
 endif()
 
 qt_finalize_executable(feather)
